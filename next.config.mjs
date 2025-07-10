@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'export',
-  basePath: '/web-qa-tool',
-  assetPrefix: '/web-qa-tool/',
+  // basePath: '/web-qa-tool',        // Commented out for local development
+  // assetPrefix: '/web-qa-tool/',    // Commented out for local development
   trailingSlash: true,
   images: {
     unoptimized: true

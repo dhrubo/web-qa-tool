@@ -418,24 +418,30 @@ export default function QAToolPage() {
                             <img
                               src={result.screenshots.desktop || "/placeholder.svg"}
                               alt="Desktop screenshot"
-                              className="w-full border rounded"
+                              className="w-full border rounded cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => window.open(result.screenshots.desktop || "/placeholder.svg", '_blank')}
                             />
+                            <p className="text-xs text-muted-foreground mt-1">Click to view full size</p>
                           </div>
                           <div>
                             <h4 className="font-semibold mb-2">Tablet (768x1024)</h4>
                             <img
                               src={result.screenshots.tablet || "/placeholder.svg"}
                               alt="Tablet screenshot"
-                              className="w-full border rounded"
+                              className="w-full border rounded cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => window.open(result.screenshots.tablet || "/placeholder.svg", '_blank')}
                             />
+                            <p className="text-xs text-muted-foreground mt-1">Click to view full size</p>
                           </div>
                           <div>
                             <h4 className="font-semibold mb-2">Mobile (375x667)</h4>
                             <img
                               src={result.screenshots.mobile || "/placeholder.svg"}
                               alt="Mobile screenshot"
-                              className="w-full border rounded"
+                              className="w-full border rounded cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => window.open(result.screenshots.mobile || "/placeholder.svg", '_blank')}
                             />
+                            <p className="text-xs text-muted-foreground mt-1">Click to view full size</p>
                           </div>
                         </div>
                       </TabsContent>
