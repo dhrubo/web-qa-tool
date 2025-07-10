@@ -445,7 +445,7 @@ export default function QAToolPage() {
                           <div className="grid gap-2 md:grid-cols-2">
                             {Object.entries(result.checks.wordCount).map(([word, count]) => (
                               <div key={word} className="flex justify-between items-center p-2 border rounded">
-                                <span className="font-medium">"{word}"</span>
+                                <span className="font-medium">&quot;{word}&quot;</span>
                                 <Badge variant="secondary">{count} occurrences</Badge>
                               </div>
                             ))}
