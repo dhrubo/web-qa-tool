@@ -6,98 +6,37 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Switch } from "@/components/ui/switch"
 import { Progress } from "@/components/ui/progress"
 import {
-  AlertCircle,
-  CheckCircle,
-  XCircle,
   Eye,
-  Zap,
-  Accessibility,
-  Search,
   ImageIcon,
   Link,
   Clock,
+  Search,
 } from "lucide-react"
 import { runQAChecks } from "./actions"
-
 interface QAResult {
-  url: string
-  timestamp: string
-  screenshots: {
-    desktop: string
-    tablet: string
-    mobile: string
-  }
-  checks: {
-    accessibility: {
-      passed: boolean
-      issues: Array<{
-        type: string
-        element: string
-        message: string
-        severity: "error" | "warning" | "info"
-      }>
-      score: number
-    }
-    performance: {
-      passed: boolean
-      metrics: {
-        loadTime: number
-        firstContentfulPaint: number
-        largestContentfulPaint: number
-        cumulativeLayoutShift: number
-      }
-      score: number
-    }
-    seo: {
-      passed: boolean
-      issues: Array<{
-        type: string
-        message: string
-        severity: "error" | "warning" | "info"
-      }>
-      score: number
-    }
-    brokenLinks: {
-      passed: boolean
-      brokenLinks: Array<{
-        url: string
-        status: number
-        text: string
-      }>
-      totalLinks: number
-    }
-    images: {
-      passed: boolean
-      issues: Array<{
-        src: string
-        issue: string
-        severity: "error" | "warning" | "info"
-      }>
-      totalImages: number
-    }
-    wordCount: {
-      [word: string]: number
-    }
-  }
-  overallScore: number
+  url: string;
+  timestamp: string;
+  screenshot?: string;
+  message?: string;
+  imageAltIssues?: { src: string; hasAlt: boolean; }[];
+  brokenLinks?: { url: string; status: number; }[];
+  wordCount?: number;
+  spellingGrammarIssues?: { index: number; offset: number; reason: string; }[];
 }
 
 export default function QAToolPage() {
   const [urls, setUrls] = useState("")
   const [searchWords, setSearchWords] = useState("")
+  const [viewportWidth, setViewportWidth] = useState(1280)
   const [selectedChecks, setSelectedChecks] = useState({
-    accessibility: true,
-    performance: true,
-    seo: true,
     brokenLinks: true,
-    images: true,
-    wordCount: true,
+    imageAlt: true,
+    spellingGrammar: true,
   })
+
   const [isRunning, setIsRunning] = useState(false)
   const [progress, setProgress] = useState(0)
   const [results, setResults] = useState<QAResult[]>([])
@@ -110,50 +49,74 @@ export default function QAToolPage() {
   }
 
   const handleRunChecks = async () => {
-    if (!urls.trim()) return
+    if (!urls.trim()) return;
 
-    setIsRunning(true)
-    setProgress(0)
-    setResults([])
+    setIsRunning(true);
+    setProgress(0);
+    setResults([]);
 
-    const urlList = urls.split("\n").filter((url) => url.trim())
-    const wordsToSearch = searchWords
-      .split(",")
-      .map((word) => word.trim())
-      .filter((word) => word)
+    const urlList = urls.split("\n").filter((url) => url.trim());
+    const wordsToSearch = searchWords.split(",").map((word) => word.trim()).filter((word) => word);
 
-    try {
-      for (let i = 0; i < urlList.length; i++) {
-        const url = urlList[i].trim()
-        setProgress(((i + 1) / urlList.length) * 100)
+    const url = urlList[0];
 
-        const result = await runQAChecks(url, selectedChecks, wordsToSearch)
-        setResults((prev) => [...prev, result])
-      }
-    } catch (error) {
-      console.error("Error running QA checks:", error)
-    } finally {
-      setIsRunning(false)
-      setProgress(0)
-    }
-  }
+    const onUpdate = (update: any) => {
+      console.log('Received update:', update);
+      setResults(prevResults => {
+        const existingResultIndex = prevResults.findIndex(r => r.url === url);
+        let newResults = [...prevResults];
 
-  const getSeverityIcon = (severity: string) => {
-    switch (severity) {
-      case "error":
-        return <XCircle className="w-4 h-4 text-red-500" />
-      case "warning":
-        return <AlertCircle className="w-4 h-4 text-yellow-500" />
-      default:
-        return <CheckCircle className="w-4 h-4 text-blue-500" />
-    }
-  }
+        if (existingResultIndex > -1) {
+          const existingResult = newResults[existingResultIndex];
+          const updatedResult = { ...existingResult };
 
-  const getScoreColor = (score: number) => {
-    if (score >= 90) return "text-green-600"
-    if (score >= 70) return "text-yellow-600"
-    return "text-red-600"
-  }
+          switch (update.type) {
+            case 'status':
+              break;
+            case 'screenshot':
+              updatedResult.screenshot = update.data.screenshot;
+              break;
+            case 'wordCount':
+              updatedResult.wordCount = update.data.wordCount;
+              break;
+            case 'imageAlt':
+              updatedResult.imageAltIssues = update.data.imageAltIssues;
+              break;
+            case 'brokenLinks':
+              updatedResult.brokenLinks = update.data.brokenLinks;
+              break;
+            case 'spellingGrammar':
+              updatedResult.spellingGrammarIssues = update.data.spellingGrammarIssues;
+              break;          }
+          newResults[existingResultIndex] = updatedResult;
+        } else {
+          const newResult: QAResult = { 
+            url, 
+            timestamp: new Date().toISOString(),
+            ...(update.type === 'screenshot' && { screenshot: update.data.screenshot }),
+            ...(update.type === 'wordCount' && { wordCount: update.data.wordCount }),
+            ...(update.type === 'imageAlt' && { imageAltIssues: update.data.imageAltIssues }),
+            ...(update.type === 'brokenLinks' && { brokenLinks: update.data.brokenLinks }),
+          };
+          newResults.push(newResult);
+        }
+        return newResults;
+      });
+    };
+
+    const onError = (error: any) => {
+      console.error("Error running QA checks:", error);
+      setIsRunning(false);
+    };
+
+    const onComplete = () => {
+      console.log('All checks complete.');
+      setIsRunning(false);
+      setProgress(100);
+    };
+
+    runQAChecks(url, wordsToSearch, selectedChecks, viewportWidth, onUpdate, onError, onComplete);
+  };
 
   return (
     <div className="container mx-auto p-6 max-w-6xl">
@@ -193,29 +156,42 @@ export default function QAToolPage() {
                 <p className="text-sm text-muted-foreground">Comma-separated words to count</p>
               </div>
 
-              <div className="space-y-3">
-                <Label>Checks to Run</Label>
+              <div className="space-y-4">
+                <h4 className="font-semibold">Checks to Perform</h4>
                 <div className="space-y-2">
-                  {[
-                    { key: "accessibility", label: "Accessibility", icon: Accessibility },
-                    { key: "performance", label: "Performance", icon: Zap },
-                    { key: "seo", label: "SEO", icon: Search },
-                    { key: "brokenLinks", label: "Broken Links", icon: Link },
-                    { key: "images", label: "Image Issues", icon: ImageIcon },
-                    { key: "wordCount", label: "Word Count", icon: Eye },
-                  ].map(({ key, label, icon: Icon }) => (
-                    <div key={key} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={key}
-                        checked={selectedChecks[key as keyof typeof selectedChecks]}
-                        onCheckedChange={(checked) => handleCheckChange(key, checked as boolean)}
-                      />
-                      <Label htmlFor={key} className="flex items-center space-x-2 cursor-pointer">
-                        <Icon className="w-4 h-4" />
-                        <span>{label}</span>
-                      </Label>
-                    </div>
-                  ))}
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="broken-links" className="flex items-center gap-2">
+                      <Link className="w-4 h-4" />
+                      Broken Link Checker
+                    </Label>
+                    <Switch
+                      id="broken-links"
+                      checked={selectedChecks.brokenLinks}
+                      onCheckedChange={(checked) => handleCheckChange("brokenLinks", checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="image-alt" className="flex items-center gap-2">
+                      <ImageIcon className="w-4 h-4" />
+                      Image Alt Text
+                    </Label>
+                    <Switch
+                      id="image-alt"
+                      checked={selectedChecks.imageAlt}
+                      onCheckedChange={(checked) => handleCheckChange("imageAlt", checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="spelling-grammar" className="flex items-center gap-2">
+                      <Search className="w-4 h-4" />
+                      Spelling & Grammar
+                    </Label>
+                    <Switch
+                      id="spelling-grammar"
+                      checked={selectedChecks.spellingGrammar}
+                      onCheckedChange={(checked) => handleCheckChange("spellingGrammar", checked)}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -253,216 +229,85 @@ export default function QAToolPage() {
                       <div>
                         <CardTitle className="text-lg">{result.url}</CardTitle>
                         <CardDescription>Tested on {new Date(result.timestamp).toLocaleString()}</CardDescription>
-                      </div>
-                      <div className="text-right">
-                        <div className={`text-2xl font-bold ${getScoreColor(result.overallScore)}`}>
-                          {result.overallScore}/100
-                        </div>
-                        <div className="text-sm text-muted-foreground">Overall Score</div>
+                        {result.wordCount !== undefined && (
+                          <CardDescription>
+                            Found {result.wordCount} occurrences of the searched words.
+                          </CardDescription>
+                        )}
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <Tabs defaultValue="overview" className="w-full">
-                      <TabsList className="grid w-full grid-cols-4">
-                        <TabsTrigger value="overview">Overview</TabsTrigger>
-                        <TabsTrigger value="issues">Issues</TabsTrigger>
-                        <TabsTrigger value="screenshots">Screenshots</TabsTrigger>
-                        <TabsTrigger value="words">Words</TabsTrigger>
-                      </TabsList>
+                    {result.screenshot ? (
+                      <div>
+                        <h4 className="font-semibold mb-2">Screenshot</h4>
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            const byteCharacters = atob(result.screenshot!);
+                            const byteNumbers = new Array(byteCharacters.length);
+                            for (let i = 0; i < byteCharacters.length; i++) {
+                              byteNumbers[i] = byteCharacters.charCodeAt(i);
+                            }
+                            const byteArray = new Uint8Array(byteNumbers);
+                            const blob = new Blob([byteArray], { type: 'image/png' });
+                            const imageUrl = URL.createObjectURL(blob);
+                            window.open(imageUrl, '_blank');
+                          }}
+                        >
+                          <img
+                            src={`data:image/png;base64,${result.screenshot}`}
+                            alt="Screenshot of the page with highlighted words"
+                            className="border rounded"
+                          />
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="text-center text-muted-foreground py-8">
+                        No screenshot available
+                      </div>
+                    )}
 
-                      <TabsContent value="overview" className="space-y-4">
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <Card>
-                            <CardHeader className="pb-2">
-                              <CardTitle className="text-sm flex items-center">
-                                <Accessibility className="w-4 h-4 mr-2" />
-                                Accessibility
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              <div className={`text-xl font-bold ${getScoreColor(result.checks.accessibility.score)}`}>
-                                {result.checks.accessibility.score}/100
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                {result.checks.accessibility.issues.length} issues found
-                              </div>
-                            </CardContent>
-                          </Card>
+                    {result.imageAltIssues && result.imageAltIssues.length > 0 && (
+                      <div className="mt-4">
+                        <h4 className="font-semibold mb-2">Images Missing Alt Text</h4>
+                        <ul className="list-disc list-inside">
+                          {result.imageAltIssues.map((issue, i) => (
+                            <li key={i} className="truncate">
+                              <a href={issue.src} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{issue.src}</a>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
 
-                          <Card>
-                            <CardHeader className="pb-2">
-                              <CardTitle className="text-sm flex items-center">
-                                <Zap className="w-4 h-4 mr-2" />
-                                Performance
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              <div className={`text-xl font-bold ${getScoreColor(result.checks.performance.score)}`}>
-                                {result.checks.performance.score}/100
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                {result.checks.performance.metrics.loadTime}ms load time
-                              </div>
-                            </CardContent>
-                          </Card>
+                    {result.brokenLinks && result.brokenLinks.length > 0 && (
+                      <div className="mt-4">
+                        <h4 className="font-semibold mb-2">Broken Links</h4>
+                        <ul className="list-disc list-inside">
+                          {result.brokenLinks.map((link, i) => (
+                            <li key={i} className="truncate">
+                              <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{link.url}</a>
+                              <span className="ml-2 text-red-500">({link.status})</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
 
-                          <Card>
-                            <CardHeader className="pb-2">
-                              <CardTitle className="text-sm flex items-center">
-                                <Link className="w-4 h-4 mr-2" />
-                                Links
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              <div className="text-xl font-bold">
-                                {result.checks.brokenLinks.totalLinks - result.checks.brokenLinks.brokenLinks.length}/
-                                {result.checks.brokenLinks.totalLinks}
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                {result.checks.brokenLinks.brokenLinks.length} broken links
-                              </div>
-                            </CardContent>
-                          </Card>
-
-                          <Card>
-                            <CardHeader className="pb-2">
-                              <CardTitle className="text-sm flex items-center">
-                                <ImageIcon className="w-4 h-4 mr-2" />
-                                Images
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              <div className="text-xl font-bold">
-                                {result.checks.images.totalImages - result.checks.images.issues.length}/
-                                {result.checks.images.totalImages}
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                {result.checks.images.issues.length} image issues
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </div>
-                      </TabsContent>
-
-                      <TabsContent value="issues" className="space-y-4">
-                        {result.checks.accessibility.issues.length > 0 && (
-                          <div>
-                            <h4 className="font-semibold mb-2 flex items-center">
-                              <Accessibility className="w-4 h-4 mr-2" />
-                              Accessibility Issues
-                            </h4>
-                            <div className="space-y-2">
-                              {result.checks.accessibility.issues.map((issue, i) => (
-                                <div key={i} className="flex items-start space-x-2 p-2 border rounded">
-                                  {getSeverityIcon(issue.severity)}
-                                  <div className="flex-1">
-                                    <div className="font-medium">{issue.type}</div>
-                                    <div className="text-sm text-muted-foreground">{issue.message}</div>
-                                    <div className="text-xs text-muted-foreground mt-1">{issue.element}</div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {result.checks.brokenLinks.brokenLinks.length > 0 && (
-                          <div>
-                            <h4 className="font-semibold mb-2 flex items-center">
-                              <Link className="w-4 h-4 mr-2" />
-                              Broken Links
-                            </h4>
-                            <div className="space-y-2">
-                              {result.checks.brokenLinks.brokenLinks.map((link, i) => (
-                                <div key={i} className="flex items-start space-x-2 p-2 border rounded">
-                                  <XCircle className="w-4 h-4 text-red-500 mt-0.5" />
-                                  <div className="flex-1">
-                                    <div className="font-medium">{link.text || "Untitled Link"}</div>
-                                    <div className="text-sm text-muted-foreground">{link.url}</div>
-                                    <Badge variant="destructive" className="text-xs mt-1">
-                                      Status: {link.status}
-                                    </Badge>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {result.checks.images.issues.length > 0 && (
-                          <div>
-                            <h4 className="font-semibold mb-2 flex items-center">
-                              <ImageIcon className="w-4 h-4 mr-2" />
-                              Image Issues
-                            </h4>
-                            <div className="space-y-2">
-                              {result.checks.images.issues.map((issue, i) => (
-                                <div key={i} className="flex items-start space-x-2 p-2 border rounded">
-                                  {getSeverityIcon(issue.severity)}
-                                  <div className="flex-1">
-                                    <div className="font-medium">{issue.issue}</div>
-                                    <div className="text-sm text-muted-foreground break-all">{issue.src}</div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </TabsContent>
-
-                      <TabsContent value="screenshots" className="space-y-4">
-                        <div className="grid gap-4 md:grid-cols-3">
-                          <div>
-                            <h4 className="font-semibold mb-2">Desktop (1920x1080)</h4>
-                            <img
-                              src={result.screenshots.desktop || "/placeholder.svg"}
-                              alt="Desktop screenshot"
-                              className="w-full border rounded cursor-pointer hover:opacity-80 transition-opacity"
-                              onClick={() => window.open(result.screenshots.desktop || "/placeholder.svg", '_blank')}
-                            />
-                            <p className="text-xs text-muted-foreground mt-1">Click to view full size</p>
-                          </div>
-                          <div>
-                            <h4 className="font-semibold mb-2">Tablet (768x1024)</h4>
-                            <img
-                              src={result.screenshots.tablet || "/placeholder.svg"}
-                              alt="Tablet screenshot"
-                              className="w-full border rounded cursor-pointer hover:opacity-80 transition-opacity"
-                              onClick={() => window.open(result.screenshots.tablet || "/placeholder.svg", '_blank')}
-                            />
-                            <p className="text-xs text-muted-foreground mt-1">Click to view full size</p>
-                          </div>
-                          <div>
-                            <h4 className="font-semibold mb-2">Mobile (375x667)</h4>
-                            <img
-                              src={result.screenshots.mobile || "/placeholder.svg"}
-                              alt="Mobile screenshot"
-                              className="w-full border rounded cursor-pointer hover:opacity-80 transition-opacity"
-                              onClick={() => window.open(result.screenshots.mobile || "/placeholder.svg", '_blank')}
-                            />
-                            <p className="text-xs text-muted-foreground mt-1">Click to view full size</p>
-                          </div>
-                        </div>
-                      </TabsContent>
-
-                      <TabsContent value="words" className="space-y-4">
-                        {Object.keys(result.checks.wordCount).length > 0 ? (
-                          <div className="grid gap-2 md:grid-cols-2">
-                            {Object.entries(result.checks.wordCount).map(([word, count]) => (
-                              <div key={word} className="flex justify-between items-center p-2 border rounded">
-                                <span className="font-medium">&quot;{word}&quot;</span>
-                                <Badge variant="secondary">{count} occurrences</Badge>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-center text-muted-foreground py-8">
-                            No search words specified or found
-                          </div>
-                        )}
-                      </TabsContent>
-                    </Tabs>
+                    {result.spellingGrammarIssues && result.spellingGrammarIssues.length > 0 && (
+                      <div className="mt-4">
+                        <h4 className="font-semibold mb-2">Spelling & Grammar Suggestions</h4>
+                        <ul className="list-disc list-inside">
+                          {result.spellingGrammarIssues.map((issue, i) => (
+                            <li key={i}>
+                              {issue.reason}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
