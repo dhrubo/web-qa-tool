@@ -14,7 +14,7 @@ async function checkImageAltTags(page: Page) {
     const images = Array.from(document.querySelectorAll('img'));
     return images.map(img => ({
       src: img.src,
-      hasAlt: img.hasAttribute('alt') && img.getAttribute('alt') !== '',
+      hasAlt: img.hasAttribute('alt') && (img.getAttribute('alt') || '').trim() !== '',
     })).filter(img => !img.hasAlt);
   });
 }
@@ -24,10 +24,9 @@ async function checkBrokenLinks(page: Page, url: string) {
     return Array.from(document.querySelectorAll('a')).map(a => a.href);
   });
 
-  const brokenLinks: { url: string; status: number; }[] = [];
-  for (const link of links) {
-    if (!link || link.startsWith('mailto:') || link.startsWith('tel:')) {
-      continue;
+  const linkCheckPromises = links.map(async (link) => {
+    if (!link || link.startsWith('mailto:') || link.startsWith('tel:') || link.startsWith('#')) {
+      return null;
     }
 
     let absoluteUrl = link;
@@ -39,13 +38,18 @@ async function checkBrokenLinks(page: Page, url: string) {
     try {
       const response = await fetch(absoluteUrl, { method: 'HEAD' });
       if (!response.ok) {
-        brokenLinks.push({ url: absoluteUrl, status: response.status });
+        return { url: absoluteUrl, status: response.status };
       }
     } catch (error) {
       console.warn(`Could not check link: ${absoluteUrl}`, error);
+      // Optionally, report these as "could not check"
+      return { url: absoluteUrl, status: 0 }; // Using status 0 to indicate a check error
     }
-  }
-  return brokenLinks;
+    return null;
+  });
+
+  const results = await Promise.all(linkCheckPromises);
+  return results.filter(result => result !== null) as { url: string; status: number; }[];
 }
 
 async function checkSpellingAndGrammar(page: Page) {
