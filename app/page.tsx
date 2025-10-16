@@ -296,16 +296,20 @@ export default function QAToolPage() {
                       </div>
                     )}
 
-                    {result.spellingGrammarIssues && result.spellingGrammarIssues.length > 0 && (
+                    {result.spellingGrammarIssues && (
                       <div className="mt-4">
                         <h4 className="font-semibold mb-2">Spelling & Grammar Suggestions</h4>
-                        <ul className="list-disc list-inside">
-                          {result.spellingGrammarIssues.map((issue, i) => (
-                            <li key={i}>
-                              {issue.reason}
-                            </li>
-                          ))}
-                        </ul>
+                        {result.spellingGrammarIssues.length === 0 ? (
+                          <p>0 spelling mistakes</p>
+                        ) : (
+                          <ul className="list-disc list-inside">
+                            {result.spellingGrammarIssues.map((issue, i) => (
+                              <li key={i}>
+                                {issue.reason}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     )}
                   </CardContent>
