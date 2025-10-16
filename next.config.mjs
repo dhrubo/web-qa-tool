@@ -2,7 +2,7 @@
 const isProd = process.env.NODE_ENV === 'production';
 
 const nextConfig = {
-  output: isProd ? 'export' : 'standalone',
+  output: 'standalone',
   // basePath: '/web-qa-tool',        // Commented out for local development
   // assetPrefix: '/web-qa-tool/',    // Commented out for local development
   trailingSlash: true,
