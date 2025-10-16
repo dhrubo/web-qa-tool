@@ -7,7 +7,8 @@
     "dev": "next dev",
     "lint": "next lint",
     "start": "next start",
-    "postinstall": "playwright install --with-deps"
+  "postinstall": "playwright install --with-deps",
+  "vercel-build": "playwright install --with-deps && next build"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
