@@ -1,0 +1,13 @@
+{
+    "builds": [
+        {
+            "src": "next.config.mjs",
+            "use": "@vercel/next"
+        }
+    ],
+    "functions": {
+        "pages/api/qa-stream.ts": {
+            "includeFiles": "node_modules/playwright-core/lib/server/playwright.js"
+        }
+    }
+}
