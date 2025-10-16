@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "npx playwright install && next build",
+    "build": "pnpm exec playwright install && next build",
     "dev": "next dev",
     "lint": "next lint",
     "start": "next start"
