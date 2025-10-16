@@ -8,6 +8,7 @@
     "lint": "next lint",
     "start": "next start",
   "postinstall": "playwright install --with-deps",
+  "prepare": "playwright install --with-deps",
   "vercel-build": "playwright install --with-deps && next build"
   },
   "dependencies": {
