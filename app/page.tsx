@@ -271,11 +271,6 @@ export default function QAToolPage() {
                   <CardContent>
                     {result.visualDiff ? (
                       <div className="space-y-4">
-                        <div className="text-center mb-4">
-                          <p className="text-sm text-muted-foreground">
-                            {result.visualDiff.diffPixels.toLocaleString()} pixels differ between screenshots
-                          </p>
-                        </div>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                           <div>
                             <h4 className="font-semibold mb-2 text-center">Original URL</h4>
