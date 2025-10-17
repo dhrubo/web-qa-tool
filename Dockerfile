@@ -47,15 +47,19 @@ COPY . .
 RUN pnpm run build
 
 # Copy necessary files for standalone mode
-RUN cp -r public .next/standalone/public
-RUN cp -r .next/static .next/standalone/.next/static
+RUN cp -r public .next/standalone/public || true
+RUN cp -r .next/static .next/standalone/.next/static || true
+
+# Copy and set permissions for start script
+COPY start.sh .
+RUN chmod +x start.sh
 
 # Railway provides PORT env variable
-ENV PORT=8080
 ENV NODE_ENV=production
+ENV HOSTNAME=0.0.0.0
 
-# Expose the port
+# Expose the port (Railway will override with its own PORT)
 EXPOSE 8080
 
-# Start the application
-CMD ["node", ".next/standalone/server.js"]
+# Start the application using the start script
+CMD ["./start.sh"]
