@@ -15,12 +15,6 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  // Only exclude screenshots from build traces, not node_modules
-  experimental: {
-    outputFileTracingIgnores: [
-      'public/screenshots/**/*',
-    ],
-  },
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals.push('playwright-lighthouse', 'lighthouse', 'playwright', 'playwright-core');
