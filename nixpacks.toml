@@ -1,8 +1,14 @@
 [phases.setup]
 nixPkgs = ["...", "chromium"]
 
+[phases.install]
+cmds = [
+    "pnpm install --frozen-lockfile",
+    "pnpm exec playwright install chromium"
+]
+
 [phases.build]
-cmds = ["chmod +x railway-build.sh", "./railway-build.sh"]
+cmds = ["pnpm run build"]
 
 [start]
 cmd = "node .next/standalone/server.js"
