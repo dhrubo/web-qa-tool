@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["...", "chromium", "nss", "freetype", "harfbuzz", "ca-certificates", "ttf-freefont"]
+
+[phases.build]
+cmds = ["chmod +x railway-build.sh", "./railway-build.sh"]
+
+[start]
+cmd = "node .next/standalone/server.js"
