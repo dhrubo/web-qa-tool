@@ -26,7 +26,12 @@ interface QAResult {
   brokenLinks?: { url: string; status: number; }[];
   wordCount?: number;
   spellingGrammarIssues?: { index: number; offset: number; reason: string; }[];
-  visualDiff?: { original: string, alpha: string, diff: string, diffPixels: number };
+  visualDiff?: { 
+    desktopOriginal: string, 
+    desktopAlpha: string, 
+    mobileOriginal: string, 
+    mobileAlpha: string 
+  };
 }
 
 export default function QAToolPage() {
@@ -69,10 +74,10 @@ export default function QAToolPage() {
 
     let urlList = urls.split("\n").filter((url) => url.trim());
     
-    // Limit to 5 URLs maximum
-    if (urlList.length > 5) {
-      alert("Maximum 5 URLs allowed. Only the first 5 will be processed.");
-      urlList = urlList.slice(0, 5);
+    // Limit to 1 URL only (due to 4 screenshots per URL)
+    if (urlList.length > 1) {
+      alert("Only 1 URL allowed at a time. Processing first URL only.");
+      urlList = urlList.slice(0, 1);
     }
 
     const wordsToSearch = searchWords.split(",").map((word) => word.trim()).filter((word) => word);
@@ -193,19 +198,18 @@ export default function QAToolPage() {
         <Card>
           <CardHeader>
             <CardTitle>Configuration</CardTitle>
-            <CardDescription>Set up your QA checks and target URLs (Max 5 URLs)</CardDescription>
+            <CardDescription>Set up your QA checks for 1 url to check the Alpha version</CardDescription>
           </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="urls">URLs to Check</Label>
-                <Textarea
+                <Label htmlFor="urls">URL to Check</Label>
+                <Input
                   id="urls"
-                  placeholder="https://example.com&#10;https://another-site.com"
+                  placeholder="https://example.com"
                   value={urls}
                   onChange={(e) => setUrls(e.target.value)}
-                  rows={4}
                 />
-                <p className="text-sm text-muted-foreground">Enter one URL per line</p>
+                <p className="text-sm text-muted-foreground">Enter ONE URL (generates 4 screenshots: desktop + mobile)</p>
               </div>
 
               {/* Words to Search field - hidden 
@@ -270,28 +274,61 @@ export default function QAToolPage() {
                   </CardHeader>
                   <CardContent>
                     {result.visualDiff ? (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                          <div>
-                            <h4 className="font-semibold mb-2 text-center">Original URL</h4>
-                            <div className="border rounded-lg overflow-hidden shadow">
-                              <img
-                                src={result.visualDiff.original}
-                                alt="Original screenshot"
-                                className="w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
-                                onClick={() => window.open(result.visualDiff?.original)}
-                              />
+                      <div className="space-y-8">
+                        {/* Desktop Screenshots */}
+                        <div>
+                          <h3 className="text-lg font-bold mb-4 text-center">Desktop Screenshots (1280px)</h3>
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div>
+                              <h4 className="font-semibold mb-2 text-center">Original URL</h4>
+                              <div className="border rounded-lg overflow-hidden shadow">
+                                <img
+                                  src={result.visualDiff.desktopOriginal}
+                                  alt="Desktop Original screenshot"
+                                  className="w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
+                                  onClick={() => window.open(result.visualDiff?.desktopOriginal)}
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <h4 className="font-semibold mb-2 text-center">With ?d_alpha=true</h4>
+                              <div className="border rounded-lg overflow-hidden shadow">
+                                <img
+                                  src={result.visualDiff.desktopAlpha}
+                                  alt="Desktop Alpha screenshot"
+                                  className="w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
+                                  onClick={() => window.open(result.visualDiff?.desktopAlpha)}
+                                />
+                              </div>
                             </div>
                           </div>
-                          <div>
-                            <h4 className="font-semibold mb-2 text-center">With ?d_alpha=true</h4>
-                            <div className="border rounded-lg overflow-hidden shadow">
-                              <img
-                                src={result.visualDiff.alpha}
-                                alt="Alpha screenshot"
-                                className="w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
-                                onClick={() => window.open(result.visualDiff?.alpha)}
-                              />
+                        </div>
+
+                        {/* Mobile Screenshots */}
+                        <div>
+                          <h3 className="text-lg font-bold mb-4 text-center">Mobile Screenshots (390x844px - iPhone 12/13/14 Pro)</h3>
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div>
+                              <h4 className="font-semibold mb-2 text-center">Original URL</h4>
+                              <div className="border rounded-lg overflow-hidden shadow">
+                                <img
+                                  src={result.visualDiff.mobileOriginal}
+                                  alt="Mobile Original screenshot"
+                                  className="w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
+                                  onClick={() => window.open(result.visualDiff?.mobileOriginal)}
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <h4 className="font-semibold mb-2 text-center">With ?d_alpha=true</h4>
+                              <div className="border rounded-lg overflow-hidden shadow">
+                                <img
+                                  src={result.visualDiff.mobileAlpha}
+                                  alt="Mobile Alpha screenshot"
+                                  className="w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
+                                  onClick={() => window.open(result.visualDiff?.mobileAlpha)}
+                                />
+                              </div>
                             </div>
                           </div>
                         </div>
