@@ -20,26 +20,42 @@ interface QAResult {
   url: string;
   timestamp: string;
   screenshot?: string;
+  screenshotAlpha?: string;
   message?: string;
-  imageAltIssues?: { src: string; hasAlt: boolean; }[];
+  imageAltIssues?: { src: string; outerHTML: string; xpath?: string | null; }[];
   brokenLinks?: { url: string; status: number; }[];
   wordCount?: number;
   spellingGrammarIssues?: { index: number; offset: number; reason: string; }[];
+  visualDiff?: { original: string, alpha: string, diff: string, diffPixels: number };
 }
 
 export default function QAToolPage() {
-  const [urls, setUrls] = useState("")
-  const [searchWords, setSearchWords] = useState("")
-  const [viewportWidth, setViewportWidth] = useState(1280)
+  const [urls, setUrls] = useState("");
+  const [searchWords, setSearchWords] = useState("");
+  const [viewportWidth, setViewportWidth] = useState(1280);
   const [selectedChecks, setSelectedChecks] = useState({
-    brokenLinks: true,
-    imageAlt: true,
-    spellingGrammar: true,
-  })
+    brokenLinks: false,
+    imageAlt: false,
+    spellingGrammar: false,
+  });
 
-  const [isRunning, setIsRunning] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [results, setResults] = useState<QAResult[]>([])
+  const [isRunning, setIsRunning] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [results, setResults] = useState<QAResult[]>([]);
+
+  // ...existing useState declarations...
+
+  // Debug log for imageAltIssues
+  // This will log every render, showing the latest results
+  if (results.length > 0 && results[0].imageAltIssues) {
+    console.log('imageAltIssues:', results[0].imageAltIssues);
+  }
+
+  // Debug log for imageAltIssues
+  // This will log every render, showing the latest results
+  if (results.length > 0 && results[0].imageAltIssues) {
+    console.log('imageAltIssues:', results[0].imageAltIssues);
+  }
 
   const handleCheckChange = (checkType: string, checked: boolean) => {
     setSelectedChecks((prev) => ({
@@ -55,83 +71,111 @@ export default function QAToolPage() {
     setProgress(0);
     setResults([]);
 
-    const urlList = urls.split("\n").filter((url) => url.trim());
+    let urlList = urls.split("\n").filter((url) => url.trim());
+    
+    // Limit to 5 URLs maximum
+    if (urlList.length > 5) {
+      alert("Maximum 5 URLs allowed. Only the first 5 will be processed.");
+      urlList = urlList.slice(0, 5);
+    }
+
     const wordsToSearch = searchWords.split(",").map((word) => word.trim()).filter((word) => word);
 
-    const url = urlList[0];
+    let completedCount = 0;
+    const totalUrls = urlList.length;
 
-    const onUpdate = (update: any) => {
-      console.log('Received update:', update);
-      setResults(prevResults => {
-        const existingResultIndex = prevResults.findIndex(r => r.url === url);
-        let newResults = [...prevResults];
+    // Process URLs sequentially
+    for (let i = 0; i < urlList.length; i++) {
+      const url = urlList[i];
+      
+      await new Promise<void>((resolve) => {
+        const onUpdate = (update: any) => {
+          console.log('Received update for', url, ':', update);
+          setResults(prevResults => {
+            const existingResultIndex = prevResults.findIndex(r => r.url === url);
+            let newResults = [...prevResults];
 
-        if (existingResultIndex > -1) {
-          const existingResult = newResults[existingResultIndex];
-          const updatedResult = { ...existingResult };
+            if (existingResultIndex > -1) {
+              const existingResult = newResults[existingResultIndex];
+              const updatedResult = { ...existingResult };
 
-          switch (update.type) {
-            case 'status':
-              break;
-            case 'screenshot':
-              updatedResult.screenshot = update.data.screenshot;
-              break;
-            case 'wordCount':
-              updatedResult.wordCount = update.data.wordCount;
-              break;
-            case 'imageAlt':
-              updatedResult.imageAltIssues = update.data.imageAltIssues;
-              break;
-            case 'brokenLinks':
-              updatedResult.brokenLinks = update.data.brokenLinks;
-              break;
-            case 'spellingGrammar':
-              updatedResult.spellingGrammarIssues = update.data.spellingGrammarIssues;
-              break;          }
-          newResults[existingResultIndex] = updatedResult;
-        } else {
-          const newResult: QAResult = { 
-            url, 
-            timestamp: new Date().toISOString(),
-            ...(update.type === 'screenshot' && { screenshot: update.data.screenshot }),
-            ...(update.type === 'wordCount' && { wordCount: update.data.wordCount }),
-            ...(update.type === 'imageAlt' && { imageAltIssues: update.data.imageAltIssues }),
-            ...(update.type === 'brokenLinks' && { brokenLinks: update.data.brokenLinks }),
-          };
-          newResults.push(newResult);
-        }
-        return newResults;
+              switch (update.type) {
+                case 'status':
+                  break;
+                case 'screenshot':
+                  updatedResult.screenshot = update.data.screenshot;
+                  break;
+                case 'screenshotAlpha':
+                  updatedResult.screenshotAlpha = update.data.screenshotAlpha;
+                  break;
+                case 'wordCount':
+                  updatedResult.wordCount = update.data.wordCount;
+                  break;
+                case 'imageAlt':
+                  updatedResult.imageAltIssues = update.data.imageAltIssues;
+                  break;
+                case 'brokenLinks':
+                  updatedResult.brokenLinks = update.data.brokenLinks;
+                  break;
+                case 'spellingGrammar':
+                  updatedResult.spellingGrammarIssues = update.data.spellingGrammarIssues;
+                  break;
+                case 'visual-diff':
+                  updatedResult.visualDiff = update.data;
+                  break;
+              }
+              newResults[existingResultIndex] = updatedResult;
+            } else {
+              const newResult: QAResult = { 
+                url, 
+                timestamp: new Date().toISOString(),
+                ...(update.type === 'screenshot' && { screenshot: update.data.screenshot }),
+                ...(update.type === 'screenshotAlpha' && { screenshotAlpha: update.data.screenshotAlpha }),
+                ...(update.type === 'wordCount' && { wordCount: update.data.wordCount }),
+                ...(update.type === 'imageAlt' && { imageAltIssues: update.data.imageAltIssues }),
+                ...(update.type === 'brokenLinks' && { brokenLinks: update.data.brokenLinks }),
+              };
+              newResults.push(newResult);
+            }
+            return newResults;
+          });
+        };
+
+        const onError = (error: any) => {
+          console.error("Error running QA checks for", url, ":", error);
+          completedCount++;
+          setProgress((completedCount / totalUrls) * 100);
+          resolve();
+        };
+
+        const onComplete = () => {
+          console.log('Checks complete for', url);
+          completedCount++;
+          setProgress((completedCount / totalUrls) * 100);
+          resolve();
+        };
+
+        runQAChecks(url, wordsToSearch, selectedChecks, viewportWidth, onUpdate, onError, onComplete);
       });
-    };
+    }
 
-    const onError = (error: any) => {
-      console.error("Error running QA checks:", error);
-      setIsRunning(false);
-    };
-
-    const onComplete = () => {
-      console.log('All checks complete.');
-      setIsRunning(false);
-      setProgress(100);
-    };
-
-    runQAChecks(url, wordsToSearch, selectedChecks, viewportWidth, onUpdate, onError, onComplete);
+    setIsRunning(false);
+    setProgress(100);
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
+    <div className="container mx-auto p-6 max-w-7xl">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Web QA Tool</h1>
         <p className="text-muted-foreground">Automated quality assurance testing for web pages using Playwright</p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-1">
-          <Card>
-            <CardHeader>
-              <CardTitle>Configuration</CardTitle>
-              <CardDescription>Set up your QA checks and target URLs</CardDescription>
-            </CardHeader>
+      <div className="grid gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Configuration</CardTitle>
+            <CardDescription>Set up your QA checks and target URLs (Max 5 URLs)</CardDescription>
+          </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="urls">URLs to Check</Label>
@@ -145,6 +189,7 @@ export default function QAToolPage() {
                 <p className="text-sm text-muted-foreground">Enter one URL per line</p>
               </div>
 
+              {/* Words to Search field - hidden 
               <div className="space-y-2">
                 <Label htmlFor="words">Words to Search</Label>
                 <Input
@@ -155,47 +200,13 @@ export default function QAToolPage() {
                 />
                 <p className="text-sm text-muted-foreground">Comma-separated words to count</p>
               </div>
+              */}
 
               <div className="space-y-4">
-                <h4 className="font-semibold">Checks to Perform</h4>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="broken-links" className="flex items-center gap-2">
-                      <Link className="w-4 h-4" />
-                      Broken Link Checker
-                    </Label>
-                    <Switch
-                      id="broken-links"
-                      checked={selectedChecks.brokenLinks}
-                      onCheckedChange={(checked) => handleCheckChange("brokenLinks", checked)}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="image-alt" className="flex items-center gap-2">
-                      <ImageIcon className="w-4 h-4" />
-                      Image Alt Text
-                    </Label>
-                    <Switch
-                      id="image-alt"
-                      checked={selectedChecks.imageAlt}
-                      onCheckedChange={(checked) => handleCheckChange("imageAlt", checked)}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="spelling-grammar" className="flex items-center gap-2">
-                      <Search className="w-4 h-4" />
-                      Spelling & Grammar
-                    </Label>
-                    <Switch
-                      id="spelling-grammar"
-                      checked={selectedChecks.spellingGrammar}
-                      onCheckedChange={(checked) => handleCheckChange("spellingGrammar", checked)}
-                    />
-                  </div>
-                </div>
+                {/* Checks to Perform removed - options disabled by default */}
               </div>
 
-              <Button onClick={handleRunChecks} disabled={isRunning || !urls.trim()} className="w-full">
+              <Button onClick={handleRunChecks} className="w-full">
                 {isRunning ? (
                   <>
                     <Clock className="w-4 h-4 mr-2 animate-spin" />
@@ -217,12 +228,10 @@ export default function QAToolPage() {
               )}
             </CardContent>
           </Card>
-        </div>
 
-        <div className="lg:col-span-2">
-          {results.length > 0 && (
-            <div className="space-y-6">
-              {results.map((result, index) => (
+        {results.length > 0 && (
+          <div className="space-y-6">
+            {results.map((result, index) => (
                 <Card key={index}>
                   <CardHeader>
                     <div className="flex items-center justify-between">
@@ -238,47 +247,41 @@ export default function QAToolPage() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    {result.screenshot ? (
-                      <div>
-                        <h4 className="font-semibold mb-2">Screenshot</h4>
-                        <a
-                          href="#"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            const byteCharacters = atob(result.screenshot!);
-                            const byteNumbers = new Array(byteCharacters.length);
-                            for (let i = 0; i < byteCharacters.length; i++) {
-                              byteNumbers[i] = byteCharacters.charCodeAt(i);
-                            }
-                            const byteArray = new Uint8Array(byteNumbers);
-                            const blob = new Blob([byteArray], { type: 'image/png' });
-                            const imageUrl = URL.createObjectURL(blob);
-                            window.open(imageUrl, '_blank');
-                          }}
-                        >
-                          <img
-                            src={`data:image/png;base64,${result.screenshot}`}
-                            alt="Screenshot of the page with highlighted words"
-                            className="border rounded"
-                          />
-                        </a>
+                    {result.visualDiff ? (
+                      <div className="space-y-4">
+                        <div className="text-center mb-4">
+                          <p className="text-sm text-muted-foreground">
+                            {result.visualDiff.diffPixels.toLocaleString()} pixels differ between screenshots
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          <div>
+                            <h4 className="font-semibold mb-2 text-center">Original URL</h4>
+                            <div className="border rounded-lg overflow-hidden shadow">
+                              <img
+                                src={result.visualDiff.original}
+                                alt="Original screenshot"
+                                className="w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() => window.open(result.visualDiff?.original)}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <h4 className="font-semibold mb-2 text-center">With ?d_alpha=true</h4>
+                            <div className="border rounded-lg overflow-hidden shadow">
+                              <img
+                                src={result.visualDiff.alpha}
+                                alt="Alpha screenshot"
+                                className="w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() => window.open(result.visualDiff?.alpha)}
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     ) : (
-                      <div className="text-center text-muted-foreground py-8">
-                        No screenshot available
-                      </div>
-                    )}
-
-                    {result.imageAltIssues && result.imageAltIssues.length > 0 && (
-                      <div className="mt-4">
-                        <h4 className="font-semibold mb-2">Images Missing Alt Text</h4>
-                        <ul className="list-disc list-inside">
-                          {result.imageAltIssues.map((issue, i) => (
-                            <li key={i} className="truncate">
-                              <a href={issue.src} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{issue.src}</a>
-                            </li>
-                          ))}
-                        </ul>
+                      <div className="text-center text-muted-foreground py-8 bg-gray-100 rounded border">
+                        No screenshots available
                       </div>
                     )}
 
@@ -297,39 +300,36 @@ export default function QAToolPage() {
                     )}
 
                     {result.spellingGrammarIssues && (
-                      <div className="mt-4">
-                        <h4 className="font-semibold mb-2">Spelling & Grammar Suggestions</h4>
-                        {result.spellingGrammarIssues.length === 0 ? (
-                          <p>0 spelling mistakes</p>
-                        ) : (
-                          <ul className="list-disc list-inside">
-                            {result.spellingGrammarIssues.map((issue, i) => (
-                              <li key={i}>
-                                {issue.reason}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
+                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded">
+                      <h4 className="font-semibold mb-2 text-blue-800">Spelling & Grammar</h4>
+                      {(result.spellingGrammarIssues && result.spellingGrammarIssues.length === 0) || !result.spellingGrammarIssues ? (
+                        <p className="text-green-700">No spelling or grammar issues found.</p>
+                      ) : (
+                        <ul className="list-disc list-inside text-blue-900">
+                          {result.spellingGrammarIssues.map((issue, i) => (
+                            <li key={i}>{issue.reason}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                     )}
                   </CardContent>
                 </Card>
               ))}
-            </div>
-          )}
+          </div>
+        )}
 
-          {results.length === 0 && !isRunning && (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <Eye className="w-12 h-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No Results Yet</h3>
-                <p className="text-muted-foreground text-center">
-                  Configure your checks and enter URLs to get started with automated QA testing.
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+        {results.length === 0 && !isRunning && (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <Eye className="w-12 h-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No Results Yet</h3>
+              <p className="text-muted-foreground text-center">
+                Configure your checks and enter URLs to get started with automated QA testing.
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )

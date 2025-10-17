@@ -1,0 +1,12 @@
+{
+  "note": "This file is for debugging the imageAltIssues API response. Replace with actual output to inspect structure.",
+  "sample": {
+    "imageAltIssues": [
+      {
+        "src": "https://mediaservice.audi.com/media/cdb/data/958590ca-33e6-4b48-8fea-8fe25941a3e3.webp?wid=40",
+        "outerHTML": "<img src=\"https://mediaservice.audi.com/media/cdb/data/958590ca-33e6-4b48-8fea-8fe25941a3e3.webp?wid=40\" alt=\"\">",
+        "xpath": "/html/body/main/div/img[1]"
+      }
+    ]
+  }
+}

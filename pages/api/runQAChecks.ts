@@ -4,11 +4,52 @@ import { playAudit } from 'playwright-lighthouse';
 
 async function checkImageAltTags(page: Page) {
   return page.evaluate(() => {
+    function getXPathForElement(element: any) {
+      if (element.id) {
+        return 'id("' + element.id + '")';
+      }
+      const parts = [];
+      while (element && element.nodeType === Node.ELEMENT_NODE) {
+        let nbOfPreviousSiblings = 0;
+        let hasNextSiblings = false;
+        let sibling = element.previousSibling;
+        while (sibling) {
+          if (sibling.nodeType !== Node.DOCUMENT_TYPE_NODE && sibling.nodeName === element.nodeName) {
+            nbOfPreviousSiblings++;
+          }
+          sibling = sibling.previousSibling;
+        }
+        sibling = element.nextSibling;
+        while (sibling) {
+          if (sibling.nodeName === element.nodeName) {
+            hasNextSiblings = true;
+            break;
+          }
+          sibling = sibling.nextSibling;
+        }
+        const prefix = element.prefix ? element.prefix + ":" : "";
+        const nth = nbOfPreviousSiblings || hasNextSiblings ? `[${nbOfPreviousSiblings + 1}]` : "";
+        parts.push(prefix + element.nodeName.toLowerCase() + nth);
+        element = element.parentNode;
+      }
+      return parts.length ? "/" + parts.reverse().join("/") : null;
+    }
     const images = Array.from(document.querySelectorAll('img'));
-    return images.map(img => ({
-      src: img.src,
-      hasAlt: img.hasAttribute('alt') && img.getAttribute('alt') !== '',
-    })).filter(img => !img.hasAlt);
+    return images
+      .filter(img => !img.hasAttribute('alt') || img.getAttribute('alt') === '')
+      .map(img => {
+        let outerHTML = img.outerHTML;
+        if (!outerHTML || typeof outerHTML !== 'string') {
+          // Fallback: construct minimal HTML string
+          let src = img.getAttribute('src') || '';
+          outerHTML = `<img src="${src}" alt="">`;
+        }
+        return {
+          src: img.src,
+          outerHTML,
+          xpath: getXPathForElement(img)
+        };
+      });
   });
 }
 
@@ -30,9 +71,21 @@ async function checkBrokenLinks(page: Page, url: string) {
     }
 
     try {
-      const response = await fetch(absoluteUrl, { method: 'HEAD' });
+      let response = await fetch(absoluteUrl, { method: 'HEAD' });
       if (!response.ok) {
-        brokenLinks.push({ url: absoluteUrl, status: response.status });
+        // If HEAD fails with 400/403/405, try GET
+        if ([400, 403, 405].includes(response.status)) {
+          try {
+            response = await fetch(absoluteUrl, { method: 'GET' });
+          } catch (err) {
+            // GET also failed, treat as broken
+            brokenLinks.push({ url: absoluteUrl, status: response.status });
+            continue;
+          }
+        }
+        if (!response.ok) {
+          brokenLinks.push({ url: absoluteUrl, status: response.status });
+        }
       }
     } catch (error) {
       console.warn(`Could not check link: ${absoluteUrl}`, error);
@@ -66,6 +119,10 @@ export default async function handler(
       viewport: { width: 1280, height: 1080 },
       deviceScaleFactor: 1,
     });
+    // Set custom user-agent to mimic a real browser
+    await page.setExtraHTTPHeaders({
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    });
     console.log('Page created. Navigating to URL:', url);
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
     console.log('Navigation complete. Waiting for main selector...');
@@ -83,126 +140,47 @@ export default async function handler(
     });
     console.log('Images loaded. Waiting for dynamic content...');
     await new Promise(resolve => setTimeout(resolve, 1000));
-    console.log('Dynamic content wait complete. Beginning audit blocks...');
-    let screenshot;
-    let imageAltIssues: { src: string; hasAlt: boolean; }[] = [];
-    let brokenLinks: { url: string; status: number; }[] = [];
-    let wordCount = 0;
-    let lighthouseReport;
+    console.log('Dynamic content wait complete. Taking screenshots...');
+  
+  let screenshot;
+  let screenshotAlpha;
+  let brokenLinks: { url: string; status: number; }[] = [];
+  let wordCount = 0;
+  let lighthouseReport;
+  let spellingGrammarIssues: any[] = [];
 
-    // Search word highlight and screenshot
+    // Take full page screenshot of actual URL
+    console.log('Taking screenshot of original URL...');
     try {
-      console.log('Entering search word highlight block...');
-      if (searchWords && searchWords.length > 0) {
-        console.log('Running search word highlight and screenshot...');
-        const boundingBoxes = await page.evaluate((searchWords) => {
-          const boxes = [];
-          const walker = document.createTreeWalker(
-            document.body,
-            NodeFilter.SHOW_TEXT,
-            null,
-            false
-          );
-          let node;
-          while ((node = walker.nextNode())) {
-            if (node.textContent) {
-              for (const searchWord of searchWords) {
-                const lowerCaseText = node.textContent.toLowerCase();
-                const lowerCaseSearchWord = searchWord.toLowerCase();
-                let index = lowerCaseText.indexOf(lowerCaseSearchWord);
-                while (index !== -1) {
-                  const range = document.createRange();
-                  range.setStart(node, index);
-                  range.setEnd(node, index + searchWord.length);
-                  const rect = range.getBoundingClientRect();
-                  if (rect.width > 0 && rect.height > 0) {
-                    boxes.push({
-                      x: rect.left + window.scrollX,
-                      y: rect.top + window.scrollY,
-                      width: rect.width,
-                      height: rect.height,
-                    });
-                  }
-                  index = lowerCaseText.indexOf(lowerCaseSearchWord, index + 1);
-                }
-              }
-            }
-          }
-          return boxes;
-        }, searchWords);
-
-        wordCount = boundingBoxes.length;
-
-        if (boundingBoxes.length > 0) {
-          // Draw overlays
-          await page.evaluate((boxes) => {
-            boxes.forEach(box => {
-              const div = document.createElement('div');
-              div.style.position = 'absolute';
-              div.style.left = `${box.x}px`;
-              div.style.top = `${box.y}px`;
-              div.style.width = `${box.width}px`;
-              div.style.height = `${box.height}px`;
-              div.style.border = '2px solid red';
-              div.style.zIndex = '10000';
-              div.style.pointerEvents = 'none';
-              document.body.appendChild(div);
-            });
-          }, boundingBoxes);
-
-          await new Promise(resolve => setTimeout(resolve, 100));
-
-          // Try to get bounding rect of <main>
-          const mainRect = await page.evaluate(() => {
-            const main = document.querySelector('main');
-            if (main) {
-              const rect = main.getBoundingClientRect();
-              return {
-                x: rect.left + window.scrollX,
-                y: rect.top + window.scrollY,
-                width: rect.width,
-                height: rect.height
-              };
-            }
-            return null;
-          });
-
-          let clip;
-          const padding = 20;
-          if (mainRect && mainRect.width > 0 && mainRect.height > 0) {
-            clip = {
-              x: Math.max(mainRect.x - padding, 0),
-              y: Math.max(mainRect.y - padding, 0),
-              width: mainRect.width + 2 * padding,
-              height: mainRect.height + 2 * padding
-            };
-            console.log('Cropping screenshot to <main> element.');
-          } else {
-            // Fallback to union of bounding boxes
-            const minX = Math.min(...boundingBoxes.map(b => b.x));
-            const minY = Math.min(...boundingBoxes.map(b => b.y));
-            const maxX = Math.max(...boundingBoxes.map(b => b.x + b.width));
-            const maxY = Math.max(...boundingBoxes.map(b => b.y + b.height));
-            clip = {
-              x: Math.max(minX - padding, 0),
-              y: Math.max(minY - padding, 0),
-              width: maxX - minX + 2 * padding,
-              height: maxY - minY + 2 * padding
-            };
-            console.log('Cropping screenshot to union of highlighted boxes.');
-          }
-
-          screenshot = await page.screenshot({ clip, type: 'jpeg', quality: 80 });
-          console.log('Screenshot taken and cropped to main content area.');
-        } else {
-          console.log('No search word matches found, skipping screenshot.');
-        }
-      } else {
-        console.log('No search words provided, skipping search word highlight.');
-      }
-      console.log('Exiting search word highlight block.');
+      screenshot = await page.screenshot({ fullPage: true, type: 'jpeg', quality: 80 });
+      console.log('Screenshot of original URL taken successfully.');
     } catch (err) {
-      console.error('Error in search word highlight block:', err);
+      console.error('Error taking screenshot of original URL:', err);
+      screenshot = undefined;
+    }
+
+    // Take full page screenshot of URL with ?d_alpha=true
+    let alphaUrl = url.includes('?') ? `${url}&d_alpha=true` : `${url}?d_alpha=true`;
+    console.log('Navigating to URL with ?d_alpha=true:', alphaUrl);
+    try {
+      await page.goto(alphaUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await page.waitForSelector('main', { timeout: 20000 });
+      await page.evaluate(async () => {
+        const selectors = Array.from(document.images).map(img => {
+          if (img.complete) return null;
+          return new Promise(resolve => {
+            img.addEventListener('load', resolve);
+            img.addEventListener('error', resolve);
+          });
+        });
+        await Promise.all(selectors.filter(Boolean));
+      });
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      screenshotAlpha = await page.screenshot({ fullPage: true, type: 'jpeg', quality: 80 });
+      console.log('Screenshot of ?d_alpha=true URL taken successfully.');
+    } catch (err) {
+      console.error('Error taking screenshot of ?d_alpha=true URL:', err);
+      screenshotAlpha = undefined;
     }
 
     // Lighthouse audit
@@ -212,6 +190,7 @@ export default async function handler(
         console.log('Running Lighthouse audit...');
         const auditResults = await playAudit({
           page: page,
+          port: 9222,
           thresholds: {
             performance: thresholds?.performance ?? 0,
             accessibility: thresholds?.accessibility ?? 0,
@@ -229,20 +208,8 @@ export default async function handler(
       console.error('Error in Lighthouse audit block:', err);
     }
 
-    // Image alt audit
-    try {
-      console.log('Entering image alt audit block...');
-      if (selectedChecks && selectedChecks.imageAlt) {
-        console.log('Running image alt audit...');
-        imageAltIssues = await checkImageAltTags(page);
-        console.log('Image alt audit complete.');
-      } else {
-        console.log('Image alt check not selected, skipping image alt audit.');
-      }
-      console.log('Exiting image alt audit block.');
-    } catch (err) {
-      console.error('Error in image alt audit block:', err);
-    }
+    // Image alt audit - DISABLED
+    // Image alt check is disabled for now
 
     // Broken links audit
     try {
@@ -263,10 +230,11 @@ export default async function handler(
     console.log('Browser closed, sending response.');
     res.status(200).json({
       screenshot: screenshot ? screenshot.toString('base64') : undefined,
-      imageAltIssues,
+      screenshotAlpha: screenshotAlpha ? screenshotAlpha.toString('base64') : undefined,
       brokenLinks,
       wordCount,
       lighthouseReport,
+      spellingGrammarIssues,
     });
   } catch (error) {
   console.error('Error in QA checks API:', error);

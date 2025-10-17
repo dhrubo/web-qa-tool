@@ -16,27 +16,35 @@ export function runQAChecks(
     })}`
   );
 
-  eventSource.addEventListener('status', (event) => {
+  eventSource.addEventListener('status', (event: MessageEvent) => {
     onUpdate({ type: 'status', data: JSON.parse(event.data) });
   });
 
-  eventSource.addEventListener('screenshot', (event) => {
+  eventSource.addEventListener('screenshot', (event: MessageEvent) => {
     onUpdate({ type: 'screenshot', data: JSON.parse(event.data) });
   });
 
-  eventSource.addEventListener('wordCount', (event) => {
+  eventSource.addEventListener('screenshotAlpha', (event: MessageEvent) => {
+    onUpdate({ type: 'screenshotAlpha', data: JSON.parse(event.data) });
+  });
+
+  eventSource.addEventListener('visual-diff', (event: MessageEvent) => {
+    onUpdate({ type: 'visual-diff', data: JSON.parse(event.data) });
+  });
+
+  eventSource.addEventListener('wordCount', (event: MessageEvent) => {
     onUpdate({ type: 'wordCount', data: JSON.parse(event.data) });
   });
 
-  eventSource.addEventListener('lighthouse', (event) => {
+  eventSource.addEventListener('lighthouse', (event: MessageEvent) => {
     onUpdate({ type: 'lighthouse', data: JSON.parse(event.data) });
   });
 
-  eventSource.addEventListener('imageAlt', (event) => {
+  eventSource.addEventListener('imageAlt', (event: MessageEvent) => {
     onUpdate({ type: 'imageAlt', data: JSON.parse(event.data) });
   });
 
-  eventSource.addEventListener('brokenLinks', (event) => {
+  eventSource.addEventListener('brokenLinks', (event: MessageEvent) => {
     onUpdate({ type: 'brokenLinks', data: JSON.parse(event.data) });
   });
 
@@ -45,7 +53,7 @@ export function runQAChecks(
     eventSource.close();
   });
 
-  eventSource.addEventListener('error', (event) => {
+  eventSource.addEventListener('error', (event: MessageEvent) => {
     onError(JSON.parse(event.data));
     eventSource.close();
   });

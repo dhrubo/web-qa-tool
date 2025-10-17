@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { chromium, Page } from 'playwright';
 import writeGood from 'write-good';
 import dictionary from 'dictionary-en-gb';
+import { takeScreenshots } from '../../lib/screenshot';
 
 // Function to send SSE messages
 const sendEvent = (res: NextApiResponse, event: string, data: unknown) => {
@@ -95,6 +96,11 @@ export default async function handler(
       deviceScaleFactor: 1,
     });
 
+    if (typeof url !== 'string') {
+      sendEvent(res, 'error', { message: 'URL must be a string' });
+      return res.end();
+    }
+
     console.log('Navigating to URL:', url);
     sendEvent(res, 'status', { message: `Navigating to ${url}...` });
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
@@ -132,7 +138,7 @@ export default async function handler(
         sendEvent(res, 'status', { message: 'Searching for words...' });
         const boundingBoxes = await page.evaluate((searchWords) => {
           const boxes: { x: number; y: number; width: number; height: number }[] = [];
-          const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+          const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
           let node;
           while ((node = walker.nextNode())) {
             if (node.textContent) {
@@ -183,18 +189,18 @@ export default async function handler(
         }
       } catch (err) {
         console.error('Error in search word highlight block:', err);
-        sendEvent(res, 'error', { message: 'Error during search word highlight', error: err.message });
+        sendEvent(res, 'error', { message: 'Error during search word highlight', error: (err as Error).message });
       }
     }
 
-    // Always take a screenshot
+    // Visual diff
     try {
-      sendEvent(res, 'status', { message: 'Taking screenshot...' });
-      const screenshot = await page.screenshot({ fullPage: true, type: 'jpeg', quality: 80 });
-      sendEvent(res, 'screenshot', { screenshot: screenshot.toString('base64') });
+      sendEvent(res, 'status', { message: 'Performing visual diff...' });
+      const visualDiffResult = await takeScreenshots(page, url as string);
+      sendEvent(res, 'visual-diff', visualDiffResult);
     } catch (err) {
-      console.error('Error taking screenshot:', err);
-      sendEvent(res, 'error', { message: 'Error during screenshot', error: err.message });
+      console.error('Error in visual diff block:', err);
+      sendEvent(res, 'error', { message: 'Error during visual diff', error: (err as Error).message });
     }
 
     // Image alt audit
@@ -205,7 +211,7 @@ export default async function handler(
         sendEvent(res, 'imageAlt', { imageAltIssues });
       } catch (err) {
         console.error('Error in image alt audit block:', err);
-        sendEvent(res, 'error', { message: 'Error during image alt audit', error: err.message });
+        sendEvent(res, 'error', { message: 'Error during image alt audit', error: (err as Error).message });
       }
     }
 
@@ -217,7 +223,7 @@ export default async function handler(
         sendEvent(res, 'brokenLinks', { brokenLinks });
       } catch (err) {
         console.error('Error in broken links audit block:', err);
-        sendEvent(res, 'error', { message: 'Error during broken links audit', error: err.message });
+        sendEvent(res, 'error', { message: 'Error during broken links audit', error: (err as Error).message });
       }
     }
 
@@ -229,7 +235,7 @@ export default async function handler(
         sendEvent(res, 'spellingGrammar', { spellingGrammarIssues });
       } catch (err) {
         console.error('Error in spelling and grammar audit block:', err);
-        sendEvent(res, 'error', { message: 'Error during spelling and grammar audit', error: err.message });
+        sendEvent(res, 'error', { message: 'Error during spelling and grammar audit', error: (err as Error).message });
       }
     }
 
@@ -238,7 +244,7 @@ export default async function handler(
 
   } catch (error) {
     console.error('Error in QA checks stream:', error);
-    sendEvent(res, 'error', { message: 'An unexpected error occurred', error: error.message });
+    sendEvent(res, 'error', { message: 'An unexpected error occurred', error: (error as Error).message });
     res.end();
   } finally {
     if (browser) {
