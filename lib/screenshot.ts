@@ -3,6 +3,8 @@ import { chromium, Page } from 'playwright';
 import fs from 'fs';
 import pixelmatch from 'pixelmatch';
 import { PNG } from 'pngjs';
+import os from 'os';
+import path from 'path';
 
 const ALPHA_DELAY = 20000; // 20 seconds - increased to allow images to fully load
 
@@ -11,7 +13,8 @@ export async function takeScreenshots(page: Page, url: string): Promise<{ origin
 
   try {
     const urlSlug = url.replace(/[^a-zA-Z0-9]/g, '_');
-    const screenshotDir = `/Users/dhrubo.paul/Sites/audi/web-qa-tool/public/screenshots/${urlSlug}`;
+    // Use temp directory that works in Railway
+    const screenshotDir = path.join(os.tmpdir(), 'screenshots', urlSlug);
     if (!fs.existsSync(screenshotDir)) {
       fs.mkdirSync(screenshotDir, { recursive: true });
     }
@@ -79,11 +82,26 @@ export async function takeScreenshots(page: Page, url: string): Promise<{ origin
     console.log(`Writing diff image to ${diffPath}`);
     fs.writeFileSync(diffPath, PNG.sync.write(diff));
 
+    // Read images as base64 for embedding in response
+    const originalBase64 = `data:image/png;base64,${fs.readFileSync(originalPath).toString('base64')}`;
+    const alphaBase64 = `data:image/png;base64,${fs.readFileSync(alphaPath).toString('base64')}`;
+    const diffBase64 = `data:image/png;base64,${fs.readFileSync(diffPath).toString('base64')}`;
+
+    // Clean up temp files after encoding
+    try {
+      fs.unlinkSync(originalPath);
+      fs.unlinkSync(alphaPath);
+      fs.unlinkSync(diffPath);
+      fs.rmdirSync(screenshotDir);
+    } catch (e) {
+      console.log('Could not clean up temp files:', e);
+    }
+
     console.log(`Screenshot comparison complete!`);
     return {
-      original: `/screenshots/${urlSlug}/original.png`,
-      alpha: `/screenshots/${urlSlug}/alpha.png`,
-      diff: `/screenshots/${urlSlug}/diff.png`,
+      original: originalBase64,
+      alpha: alphaBase64,
+      diff: diffBase64,
       diffPixels: numDiffPixels,
     };
   } catch (error) {
