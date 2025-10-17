@@ -42,20 +42,16 @@ export default function QAToolPage() {
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<QAResult[]>([]);
+  const [currentStage, setCurrentStage] = useState('');
 
-  // ...existing useState declarations...
-
-  // Debug log for imageAltIssues
-  // This will log every render, showing the latest results
-  if (results.length > 0 && results[0].imageAltIssues) {
-    console.log('imageAltIssues:', results[0].imageAltIssues);
-  }
-
-  // Debug log for imageAltIssues
-  // This will log every render, showing the latest results
-  if (results.length > 0 && results[0].imageAltIssues) {
-    console.log('imageAltIssues:', results[0].imageAltIssues);
-  }
+  // Track progress stages per URL
+  const progressStages = {
+    'Taking screenshots': 0.3,
+    'Performing visual diff': 0.6,
+    'Checking image alt tags': 0.75,
+    'Checking for broken links': 0.85,
+    'Checking spelling and grammar': 0.95,
+  };
 
   const handleCheckChange = (checkType: string, checked: boolean) => {
     setSelectedChecks((prev) => ({
@@ -91,6 +87,29 @@ export default function QAToolPage() {
       await new Promise<void>((resolve) => {
         const onUpdate = (update: any) => {
           console.log('Received update for', url, ':', update);
+          
+          // Update progress based on status messages
+          if (update.type === 'status' && update.data?.message) {
+            const message = update.data.message;
+            setCurrentStage(message);
+            
+            // Calculate progress based on completed URLs + current URL's stage
+            const baseProgress = (completedCount / totalUrls) * 100;
+            const currentUrlProgress = (1 / totalUrls) * 100;
+            
+            // Find stage progress multiplier
+            let stageMultiplier = 0;
+            for (const [stageName, multiplier] of Object.entries(progressStages)) {
+              if (message.includes(stageName)) {
+                stageMultiplier = multiplier;
+                break;
+              }
+            }
+            
+            const newProgress = baseProgress + (currentUrlProgress * stageMultiplier);
+            setProgress(newProgress);
+          }
+          
           setResults(prevResults => {
             const existingResultIndex = prevResults.findIndex(r => r.url === url);
             let newResults = [...prevResults];
@@ -224,6 +243,9 @@ export default function QAToolPage() {
                     <span>{Math.round(progress)}%</span>
                   </div>
                   <Progress value={progress} />
+                  {currentStage && (
+                    <p className="text-xs text-muted-foreground text-center">{currentStage}</p>
+                  )}
                 </div>
               )}
             </CardContent>
