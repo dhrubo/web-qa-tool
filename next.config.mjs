@@ -15,18 +15,8 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  // Exclude screenshots and heavy dependencies from build traces
+  // Only exclude screenshots from build traces, not node_modules
   experimental: {
-    outputFileTracingExcludes: {
-      '*': [
-        'public/screenshots/**/*',
-        'node_modules/playwright-core/**/*',
-        'node_modules/playwright/**/*',
-        'node_modules/@playwright/**/*',
-        'node_modules/lighthouse/**/*',
-        'node_modules/chrome-launcher/**/*',
-      ],
-    },
     outputFileTracingIgnores: [
       'public/screenshots/**/*',
     ],
