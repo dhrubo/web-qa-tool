@@ -29,3 +29,6 @@ Thumbs.db
 # Other
 .aws-sam
 .huskyrm
+
+# Screenshots (temporary files)
+public/screenshots/*.png

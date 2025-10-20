@@ -3,6 +3,7 @@ export function runQAChecks(
   searchWords: string[],
   selectedChecks: any,
   viewportWidth: number,
+  queryMode: "single-alpha" | "multi-desktop",
   onUpdate: (data: any) => void,
   onError: (error: any) => void,
   onComplete: () => void
@@ -13,6 +14,7 @@ export function runQAChecks(
       searchWords: JSON.stringify(searchWords),
       selectedChecks: JSON.stringify(selectedChecks),
       viewportWidth: viewportWidth.toString(),
+      queryMode: queryMode,
     })}`
   );
 

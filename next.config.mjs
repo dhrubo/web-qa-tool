@@ -15,6 +15,12 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Increase server timeout for long-running screenshot operations
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
+  },
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals.push('playwright-lighthouse', 'lighthouse', 'playwright', 'playwright-core');

@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { chromium, Page } from 'playwright';
 import writeGood from 'write-good';
 import dictionary from 'dictionary-en-gb';
-import { takeScreenshots } from '../../lib/screenshot';
+import { takeScreenshots, takeDesktopScreenshots, cleanupOldScreenshots } from '../../lib/screenshot';
 
 // Function to send SSE messages
 const sendEvent = (res: NextApiResponse, event: string, data: unknown) => {
@@ -70,21 +70,31 @@ export default async function handler(
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable buffering for nginx/Railway
   res.flushHeaders();
 
-  const { url, searchWords: searchWordsString, selectedChecks: selectedChecksString, viewportWidth: viewportWidthString } = req.query;
+  const { url, searchWords: searchWordsString, selectedChecks: selectedChecksString, viewportWidth: viewportWidthString, queryMode: queryModeString } = req.query;
 
   const searchWords = JSON.parse(searchWordsString as string);
   const selectedChecks = JSON.parse(selectedChecksString as string);
   const viewportWidth = parseInt(viewportWidthString as string, 10) || 1280;
+  const queryMode = (queryModeString as string) || 'single-alpha';
 
   if (!url) {
     sendEvent(res, 'error', { message: 'URL is required' });
     return res.end();
   }
 
+  // Send keepalive comments every 15 seconds to prevent timeout
+  const keepaliveInterval = setInterval(() => {
+    res.write(': keepalive\n\n');
+  }, 15000);
+
   let browser;
   try {
+    // Clean up old screenshots before starting
+    cleanupOldScreenshots();
+    
     console.log('Launching browser...');
     sendEvent(res, 'status', { message: 'Launching browser...' });
     browser = await chromium.launch({
@@ -193,11 +203,22 @@ export default async function handler(
       }
     }
 
-    // Visual diff
+    // Visual diff - choose function based on query mode
     try {
-      sendEvent(res, 'status', { message: 'Performing visual diff...' });
-      const visualDiffResult = await takeScreenshots(page, url as string);
-      sendEvent(res, 'visual-diff', visualDiffResult);
+      // Create progress callback to send updates
+      const progressCallback = (message: string) => {
+        sendEvent(res, 'status', { message });
+      };
+
+      if (queryMode === 'single-alpha') {
+        sendEvent(res, 'status', { message: 'Taking screenshots (desktop + mobile)...' });
+        const visualDiffResult = await takeScreenshots(page, url as string, progressCallback);
+        sendEvent(res, 'visual-diff', visualDiffResult);
+      } else {
+        sendEvent(res, 'status', { message: 'Taking screenshots (desktop only)...' });
+        const visualDiffResult = await takeDesktopScreenshots(page, url as string, progressCallback);
+        sendEvent(res, 'visual-diff', visualDiffResult);
+      }
     } catch (err) {
       console.error('Error in visual diff block:', err);
       sendEvent(res, 'error', { message: 'Error during visual diff', error: (err as Error).message });
@@ -247,8 +268,20 @@ export default async function handler(
     sendEvent(res, 'error', { message: 'An unexpected error occurred', error: (error as Error).message });
     res.end();
   } finally {
+    clearInterval(keepaliveInterval);
     if (browser) {
       await browser.close();
     }
   }
 }
+
+// Disable body parser and set timeout for long-running screenshot operations
+export const config = {
+  api: {
+    responseLimit: false,
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+  maxDuration: 300, // 5 minutes for Vercel/Railway
+};
