@@ -88,12 +88,12 @@ export default function QAToolPage() {
   useEffect(() => {
     return () => {
       if (screenshotTimerRef.current) {
-        clearInterval(screenshotTimerRef.current);
+        clearInterval(screenshotTimerRef.current); 
       }
     };
   }, []);
 
-  // Start screenshot progress animation
+  // Start screenshot progress animations
   const startScreenshotTimer = (mode: "single-alpha" | "multi-desktop", completedCount: number, totalUrls: number) => {
     const totalTime = SCREENSHOT_TIMINGS[mode].total;
     screenshotStartTimeRef.current = Date.now();
