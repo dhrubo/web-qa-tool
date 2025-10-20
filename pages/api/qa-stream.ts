@@ -99,12 +99,12 @@ export default async function handler(
     sendEvent(res, 'status', { message: 'Launching browser...' });
     browser = await chromium.launch({
       headless: true,
+      executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
       args: [
         '--no-sandbox',
         '--disable-gpu',
-        '--disable-dev-shm-usage', // Prevent memory issues on Railway
+        '--disable-dev-shm-usage',
         '--disable-setuid-sandbox',
-        '--no-zygote', // Recommended for running in containers
       ],
     });
     const page = await browser.newPage({
