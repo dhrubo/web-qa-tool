@@ -1,7 +1,15 @@
-FROM node:20-slim
+# Use Ubuntu as base to avoid slim image issues
+FROM ubuntu:22.04
 
-# Install system dependencies for Playwright
-RUN apt-get update && apt-get install -y \
+# Prevent tzdata apt-get prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Node.js 20
+RUN apt-get update && apt-get install -y curl && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    # Install Playwright deps
+    apt-get install -y \
     libnss3 \
     libnspr4 \
     libatk1.0-0 \
@@ -22,23 +30,24 @@ RUN apt-get update && apt-get install -y \
     libxshmfence1 \
     fonts-liberation \
     libglib2.0-0 \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    ca-certificates && \
+    # Clean up
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install pnpm
-RUN npm install -g pnpm
+RUN npm install -g pnpm@10.18.3
 
+# Set working directory
 WORKDIR /app
 
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
-
-# Install Playwright browsers
-RUN pnpm exec playwright install chromium
-RUN pnpm exec playwright install-deps chromium
+# Install dependencies and Playwright
+RUN pnpm install --frozen-lockfile && \
+    pnpm exec playwright install chromium && \
+    pnpm exec playwright install-deps chromium
 
 # Copy application code
 COPY . .
@@ -46,20 +55,13 @@ COPY . .
 # Build Next.js app
 RUN pnpm run build
 
-# Copy necessary files for standalone mode
-RUN cp -r public .next/standalone/public || true
-RUN cp -r .next/static .next/standalone/.next/static || true
-
-# Copy and set permissions for start script
-COPY start.sh .
-RUN chmod +x start.sh
-
-# Railway provides PORT env variable
+# Set up for production
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
+ENV PORT=8080
 
-# Expose the port (Railway will override with its own PORT)
+# Expose port
 EXPOSE 8080
 
-# Start the application using the start script
-CMD ["./start.sh"]
+# Start the application
+CMD ["sh", "-c", "node .next/standalone/server.js"]

@@ -20,7 +20,17 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '10mb',
     },
+    // Optimize for Railway deployment
+    optimizeCss: true,
+    craCompat: false,
+    esmExternals: true,
   },
+  // Increase timeouts for long-running screenshot operations
+  httpAgentOptions: {
+    keepAlive: true,
+  },
+  // Configure proper output directory for Railway
+  distDir: '.next',
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals.push('playwright-lighthouse', 'lighthouse', 'playwright', 'playwright-core');
